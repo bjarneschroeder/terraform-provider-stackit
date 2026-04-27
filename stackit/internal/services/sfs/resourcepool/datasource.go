@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -43,6 +44,7 @@ type dataSourceModel struct {
 	PerformanceClassDowngradableAt types.String `tfsdk:"performance_class_downgradable_at"`
 	Region                         types.String `tfsdk:"region"`
 	SnapshotsAreVisible            types.Bool   `tfsdk:"snapshots_are_visible"`
+	Labels                         types.Map    `tfsdk:"labels"`
 }
 
 type resourcePoolDataSource struct {
@@ -195,7 +197,13 @@ func (r *resourcePoolDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 				// the region cannot be found automatically, so it has to be passed
 				Optional:    true,
 				Description: "The resource region. Read-only attribute that reflects the provider region.",
-			}},
+			},
+			"labels": schema.MapAttribute{
+				Description: "Labels are key-value string pairs which can be attached to a resource pool",
+				ElementType: types.StringType,
+				Computed:    true,
+			},
+		},
 	}
 }
 
@@ -246,6 +254,18 @@ func mapDataSourceFields(ctx context.Context, region string, resourcePool *sfs.R
 	if t := resourcePool.SizeReducibleAt; t != nil {
 		model.SizeReducibleAt = types.StringValue(t.Format(time.RFC3339))
 	}
+
+	var labels basetypes.MapValue
+	if resourcePool.Labels != nil && len(*resourcePool.Labels) != 0 {
+		var err error
+		labels, err = conversion.ToTerraformStringMap(ctx, *resourcePool.Labels)
+		if err != nil {
+			return fmt.Errorf("converting to StringValue map: %w", err)
+		}
+	} else {
+		labels = types.MapNull(types.StringType)
+	}
+	model.Labels = labels
 
 	return nil
 }

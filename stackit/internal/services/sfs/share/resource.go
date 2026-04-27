@@ -6,14 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -40,6 +44,7 @@ type Model struct {
 	ResourcePoolId          types.String `tfsdk:"resource_pool_id"`
 	ShareId                 types.String `tfsdk:"share_id"`
 	Name                    types.String `tfsdk:"name"`
+	Labels                  types.Map    `tfsdk:"labels"`
 	ExportPolicyName        types.String `tfsdk:"export_policy"`
 	SpaceHardLimitGigabytes types.Int32  `tfsdk:"space_hard_limit_gigabytes"`
 	Region                  types.String `tfsdk:"region"`
@@ -157,6 +162,23 @@ func (r *shareResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Validators: []validator.String{
 					validate.UUID(),
 					validate.NoSeparator(),
+				},
+			},
+			"labels": schema.MapAttribute{
+				Description: "Labels are key-value string pairs which can be attached to a instance.",
+				ElementType: types.StringType,
+				Optional:    true,
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
+							"must match expression"),
+					),
+					mapvalidator.ValueStringsAre(
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`^$|[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
+							"must match expression"),
+					),
 				},
 			},
 			"region": schema.StringAttribute{
@@ -485,7 +507,7 @@ func (r *shareResource) ImportState(ctx context.Context, req resource.ImportStat
 	tflog.Info(ctx, "SFS share imported")
 }
 
-func mapFields(_ context.Context, share *sfs.Share, region string, model *Model) error {
+func mapFields(ctx context.Context, share *sfs.Share, region string, model *Model) error {
 	if share == nil {
 		return fmt.Errorf("share empty in response")
 	}
@@ -507,6 +529,18 @@ func mapFields(_ context.Context, share *sfs.Share, region string, model *Model)
 	)
 	model.Name = types.StringPointerValue(share.Name)
 
+	var labels basetypes.MapValue
+	if share.Labels != nil && len(*share.Labels) != 0 {
+		var err error
+		labels, err = conversion.ToTerraformStringMap(ctx, *share.Labels)
+		if err != nil {
+			return fmt.Errorf("converting to StringValue map: %w", err)
+		}
+	} else {
+		labels = types.MapNull(types.StringType)
+	}
+	model.Labels = labels
+
 	if share.ExportPolicy.IsSet() {
 		if policy := share.ExportPolicy.Get(); policy != nil {
 			model.ExportPolicyName = types.StringPointerValue(policy.Name)
@@ -523,9 +557,17 @@ func toCreatePayload(model *Model) (ret sfs.CreateSharePayload, err error) {
 	if model == nil {
 		return ret, fmt.Errorf("nil model")
 	}
+
+	modelLabels := model.Labels.Elements()
+	labels, err := conversion.ToOptStringMap(modelLabels)
+	if err != nil {
+		return ret, fmt.Errorf("converting to Go map: %w", err)
+	}
+
 	result := sfs.CreateSharePayload{
 		ExportPolicyName:        *sfs.NewNullableString(model.ExportPolicyName.ValueStringPointer()),
 		Name:                    model.Name.ValueString(),
+		Labels:                  labels,
 		SpaceHardLimitGigabytes: model.SpaceHardLimitGigabytes.ValueInt32(),
 	}
 	return result, nil
@@ -536,9 +578,16 @@ func toUpdatePayload(model *Model) (*sfs.UpdateSharePayload, error) {
 		return nil, fmt.Errorf("nil model")
 	}
 
+	modelLabels := model.Labels.Elements()
+	labels, err := conversion.ToOptStringMap(modelLabels)
+	if err != nil {
+		return nil, fmt.Errorf("converting to GO map: %w", err)
+	}
+
 	result := &sfs.UpdateSharePayload{
 		ExportPolicyName:        *sfs.NewNullableString(model.ExportPolicyName.ValueStringPointer()),
 		SpaceHardLimitGigabytes: *sfs.NewNullableInt32(model.SpaceHardLimitGigabytes.ValueInt32Pointer()),
+		Labels:                  labels,
 	}
 	return result, nil
 }

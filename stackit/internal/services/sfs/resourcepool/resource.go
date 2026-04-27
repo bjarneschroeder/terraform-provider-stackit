@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -17,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -45,6 +49,7 @@ type Model struct {
 	AvailabilityZone    types.String `tfsdk:"availability_zone"`
 	IpAcl               types.List   `tfsdk:"ip_acl"`
 	Name                types.String `tfsdk:"name"`
+	Labels              types.Map    `tfsdk:"labels"`
 	PerformanceClass    types.String `tfsdk:"performance_class"`
 	SizeGigabytes       types.Int32  `tfsdk:"size_gigabytes"`
 	Region              types.String `tfsdk:"region"`
@@ -140,6 +145,23 @@ func (r *resourcePoolResource) Schema(_ context.Context, _ resource.SchemaReques
 				Validators: []validator.String{
 					validate.UUID(),
 					validate.NoSeparator(),
+				},
+			},
+			"labels": schema.MapAttribute{
+				Description: "Labels are key-value string pairs which can be attached to a instance.",
+				ElementType: types.StringType,
+				Optional:    true,
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
+							"must match expression"),
+					),
+					mapvalidator.ValueStringsAre(
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`^$|[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
+							"must match expression"),
+					),
 				},
 			},
 			"region": schema.StringAttribute{
@@ -511,6 +533,18 @@ func mapFields(ctx context.Context, region string, resourcePool *sfs.ResourcePoo
 		model.IpAcl = types.ListNull(types.StringType)
 	}
 
+	var labels basetypes.MapValue
+	if resourcePool.Labels != nil && len(*resourcePool.Labels) != 0 {
+		var err error
+		labels, err = conversion.ToTerraformStringMap(ctx, *resourcePool.Labels)
+		if err != nil {
+			return fmt.Errorf("converting to StringValue map: %w", err)
+		}
+	} else {
+		labels = types.MapNull(types.StringType)
+	}
+	model.Labels = labels
+
 	model.Name = types.StringPointerValue(resourcePool.Name)
 	if pc := resourcePool.PerformanceClass; pc != nil {
 		model.PerformanceClass = types.StringPointerValue(pc.Name)
@@ -538,10 +572,17 @@ func toCreatePayload(model *Model) (*sfs.CreateResourcePoolPayload, error) {
 		aclList = tmp
 	}
 
+	modelLabels := model.Labels.Elements()
+	labels, err := conversion.ToOptStringMap(modelLabels)
+	if err != nil {
+		return nil, fmt.Errorf("converting to Go map: %w", err)
+	}
+
 	result := &sfs.CreateResourcePoolPayload{
 		AvailabilityZone:    model.AvailabilityZone.ValueString(),
 		IpAcl:               aclList,
 		Name:                model.Name.ValueString(),
+		Labels:              labels,
 		PerformanceClass:    model.PerformanceClass.ValueString(),
 		SizeGigabytes:       model.SizeGigabytes.ValueInt32(),
 		SnapshotsAreVisible: model.SnapshotsAreVisible.ValueBoolPointer(),
@@ -564,11 +605,18 @@ func toUpdatePayload(model *Model) (*sfs.UpdateResourcePoolPayload, error) {
 		aclList = tmp
 	}
 
+	modelLabels := model.Labels.Elements()
+	labels, err := conversion.ToOptStringMap(modelLabels)
+	if err != nil {
+		return nil, fmt.Errorf("converting to GO map: %w", err)
+	}
+
 	result := &sfs.UpdateResourcePoolPayload{
 		IpAcl:               aclList,
 		PerformanceClass:    model.PerformanceClass.ValueStringPointer(),
 		SizeGigabytes:       *sfs.NewNullableInt32(model.SizeGigabytes.ValueInt32Pointer()),
 		SnapshotsAreVisible: model.SnapshotsAreVisible.ValueBoolPointer(),
+		Labels:              labels,
 	}
 	return result, nil
 }

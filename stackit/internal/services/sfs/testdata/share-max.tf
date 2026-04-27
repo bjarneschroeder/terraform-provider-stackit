@@ -27,4 +27,7 @@ resource "stackit_sfs_share" "share" {
   name                       = var.name
   export_policy              = stackit_sfs_export_policy.exportpolicy.name
   space_hard_limit_gigabytes = var.space_hard_limit_gigabytes
+  labels = {
+    foo = "bar"
+  }
 }

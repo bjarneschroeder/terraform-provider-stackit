@@ -535,6 +535,7 @@ func TestAccResourcePoolResourceMax(t *testing.T) {
 					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "ip_acl.0", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMax["ip_acl_1"])),
 					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "ip_acl.1", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMax["ip_acl_2"])),
 					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "snapshots_are_visible", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMax["snapshots_are_visible"])),
+					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "labels.foo", "bar"),
 				),
 			},
 			// Data source
@@ -570,6 +571,7 @@ func TestAccResourcePoolResourceMax(t *testing.T) {
 					resource.TestCheckResourceAttr("data.stackit_sfs_resource_pool.resource_pool_ds", "ip_acl.0", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMax["ip_acl_1"])),
 					resource.TestCheckResourceAttr("data.stackit_sfs_resource_pool.resource_pool_ds", "ip_acl.1", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMax["ip_acl_2"])),
 					resource.TestCheckResourceAttr("data.stackit_sfs_resource_pool.resource_pool_ds", "snapshots_are_visible", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMax["snapshots_are_visible"])),
+					resource.TestCheckResourceAttr("data.stackit_sfs_resource_pool.resource_pool_ds", "labels.foo", "bar"),
 				),
 			},
 			// Import
@@ -612,6 +614,7 @@ func TestAccResourcePoolResourceMax(t *testing.T) {
 					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "ip_acl.0", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMaxUpdated()["ip_acl_1"])),
 					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "ip_acl.1", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMaxUpdated()["ip_acl_2"])),
 					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "snapshots_are_visible", testutil.ConvertConfigVariable(testConfigResourcePoolVarsMaxUpdated()["snapshots_are_visible"])),
+					resource.TestCheckResourceAttr("stackit_sfs_resource_pool.resourcepool", "labels.foo", "bar"),
 				),
 			},
 			// Deletion is done by the framework implicitly
@@ -754,6 +757,7 @@ func TestAccShareResourceMax(t *testing.T) {
 						"stackit_sfs_share.share", "export_policy",
 						"stackit_sfs_export_policy.exportpolicy", "name",
 					),
+					resource.TestCheckResourceAttr("stackit_sfs_share.share", "labels.foo", "bar"),
 					resource.TestCheckResourceAttrSet("stackit_sfs_share.share", "mount_path"),
 				),
 			},
@@ -793,6 +797,7 @@ func TestAccShareResourceMax(t *testing.T) {
 						"data.stackit_sfs_share.share_ds", "export_policy",
 						"stackit_sfs_export_policy.exportpolicy", "name",
 					),
+					resource.TestCheckResourceAttr("data.stackit_sfs_share.share_ds", "labels.foo", "bar"),
 					resource.TestCheckResourceAttrSet("data.stackit_sfs_share.share_ds", "mount_path"),
 				),
 			},
@@ -842,6 +847,7 @@ func TestAccShareResourceMax(t *testing.T) {
 						"stackit_sfs_share.share", "export_policy",
 						"stackit_sfs_export_policy.exportpolicy", "name",
 					),
+					resource.TestCheckResourceAttr("stackit_sfs_share.share", "labels.foo", "bar"),
 					resource.TestCheckResourceAttrSet("stackit_sfs_share.share", "mount_path"),
 				),
 			},

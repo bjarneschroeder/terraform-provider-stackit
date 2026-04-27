@@ -20,5 +20,8 @@ resource "stackit_sfs_resource_pool" "resourcepool" {
     var.ip_acl_1,
     var.ip_acl_2
   ]
+  labels = {
+    foo = "bar"
+  }
   snapshots_are_visible = var.snapshots_are_visible
 }

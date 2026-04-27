@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -37,6 +38,7 @@ type dataSourceModel struct {
 	SpaceHardLimitGigabytes types.Int32  `tfsdk:"space_hard_limit_gigabytes"`
 	ExportPolicyName        types.String `tfsdk:"export_policy"`
 	Region                  types.String `tfsdk:"region"`
+	Labels                  types.Map    `tfsdk:"labels"`
 }
 type shareDataSource struct {
 	client       *sfs.APIClient
@@ -183,11 +185,16 @@ You can also assign a Share Export Policy after creating the Share`,
 				Optional:    true,
 				Description: "The resource region. Read-only attribute that reflects the provider region.",
 			},
+			"labels": schema.MapAttribute{
+				Description: "Labels are key-value string pairs which can be attached to a share",
+				ElementType: types.StringType,
+				Computed:    true,
+			},
 		},
 	}
 }
 
-func mapDataSourceFields(_ context.Context, region string, share *sfs.Share, model *dataSourceModel) error {
+func mapDataSourceFields(ctx context.Context, region string, share *sfs.Share, model *dataSourceModel) error {
 	if share == nil {
 		return fmt.Errorf("share empty in response")
 	}
@@ -220,6 +227,18 @@ func mapDataSourceFields(_ context.Context, region string, share *sfs.Share, mod
 	}
 
 	model.MountPath = types.StringPointerValue(share.MountPath)
+
+	var labels basetypes.MapValue
+	if share.Labels != nil && len(*share.Labels) != 0 {
+		var err error
+		labels, err = conversion.ToTerraformStringMap(ctx, *share.Labels)
+		if err != nil {
+			return fmt.Errorf("converting to StringValue map: %w", err)
+		}
+	} else {
+		labels = types.MapNull(types.StringType)
+	}
+	model.Labels = labels
 
 	return nil
 }
