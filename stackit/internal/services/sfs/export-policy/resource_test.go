@@ -71,6 +71,7 @@ func fixtureResponseModel(rulesModel basetypes.ListValue) *Model {
 		Id:             types.StringValue(project_id + ",region,uuid1"),
 		ExportPolicyId: types.StringValue("uuid1"),
 		Rules:          rulesModel,
+		Labels:         types.MapNull(types.StringType),
 		Region:         types.StringValue("region"),
 	}
 }

@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -47,6 +49,7 @@ type Model struct {
 	ProjectId      types.String `tfsdk:"project_id"`
 	ExportPolicyId types.String `tfsdk:"policy_id"`
 	Name           types.String `tfsdk:"name"`
+	Labels         types.Map    `tfsdk:"labels"`
 	Rules          types.List   `tfsdk:"rules"`
 	Region         types.String `tfsdk:"region"`
 }
@@ -186,6 +189,23 @@ func (r *exportPolicyResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"labels": schema.MapAttribute{
+				Description: "Labels are key-value string pairs which can be attached to a instance.",
+				ElementType: types.StringType,
+				Optional:    true,
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
+							"must match expression"),
+					),
+					mapvalidator.ValueStringsAre(
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`^$|[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
+							"must match expression"),
+					),
 				},
 			},
 			"rules": schema.ListNestedAttribute{
@@ -511,6 +531,18 @@ func mapFields(ctx context.Context, resp *sfs.GetShareExportPolicyResponse, mode
 		return fmt.Errorf("export policy id not present")
 	}
 
+	var labels basetypes.MapValue
+	if resp.ShareExportPolicy.Labels != nil && len(*resp.ShareExportPolicy.Labels) != 0 {
+		var err error
+		labels, err = conversion.ToTerraformStringMap(ctx, *resp.ShareExportPolicy.Labels)
+		if err != nil {
+			return fmt.Errorf("converting to StringValue map: %w", err)
+		}
+	} else {
+		labels = types.MapNull(types.StringType)
+	}
+	model.Labels = labels
+
 	// iterate over Rules from response
 	if resp.ShareExportPolicy.Rules != nil {
 		rulesList := []attr.Value{}
@@ -572,6 +604,12 @@ func toCreatePayload(model *Model, rules []rulesModel) (*sfs.CreateShareExportPo
 		return nil, fmt.Errorf("nil rules")
 	}
 
+	modelLabels := model.Labels.Elements()
+	labels, err := conversion.ToOptStringMap(modelLabels)
+	if err != nil {
+		return nil, fmt.Errorf("converting to Go map: %w", err)
+	}
+
 	// iterate over rules
 	var tempRules []sfs.CreateShareExportPolicyRequestRule
 	for _, rule := range rules {
@@ -593,7 +631,8 @@ func toCreatePayload(model *Model, rules []rulesModel) (*sfs.CreateShareExportPo
 
 	// name and rules
 	result := &sfs.CreateShareExportPolicyPayload{
-		Name: model.Name.ValueString(),
+		Name:   model.Name.ValueString(),
+		Labels: labels,
 	}
 
 	// Rules should only be set if tempRules has value. Otherwise, the payload would contain `{ "rules": null }` what should be prevented
@@ -610,6 +649,12 @@ func toUpdatePayload(model *Model, rules []rulesModel) (*sfs.UpdateShareExportPo
 	}
 	if rules == nil {
 		return nil, fmt.Errorf("nil rules")
+	}
+
+	modelLabels := model.Labels.Elements()
+	labels, err := conversion.ToOptStringMap(modelLabels)
+	if err != nil {
+		return nil, fmt.Errorf("converting to GO map: %w", err)
 	}
 
 	// iterate over rules
@@ -635,7 +680,8 @@ func toUpdatePayload(model *Model, rules []rulesModel) (*sfs.UpdateShareExportPo
 	result := &sfs.UpdateShareExportPolicyPayload{
 		// Rules should *+never** result in a payload where they are defined as null, e.g. `{ "rules": null }`. Instead,
 		// they should either be set to an array (with values or empty) or they shouldn't be present in the payload.
-		Rules: tempRules,
+		Rules:  tempRules,
+		Labels: labels,
 	}
 	return result, nil
 }
