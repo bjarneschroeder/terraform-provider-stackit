@@ -5,6 +5,7 @@ variable "resource_pool_name" {}
 variable "export_policy_name" {}
 variable "name" {}
 variable "space_hard_limit_gigabytes" {}
+variable "label" {}
 
 resource "stackit_sfs_resource_pool" "resourcepool" {
   project_id        = var.project_id
@@ -28,6 +29,6 @@ resource "stackit_sfs_share" "share" {
   export_policy              = stackit_sfs_export_policy.exportpolicy.name
   space_hard_limit_gigabytes = var.space_hard_limit_gigabytes
   labels = {
-    foo = "bar"
+    label = var.label
   }
 }
