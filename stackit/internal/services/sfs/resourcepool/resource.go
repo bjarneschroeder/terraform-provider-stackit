@@ -6,12 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -148,21 +145,10 @@ func (r *resourcePoolResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 			},
 			"labels": schema.MapAttribute{
-				Description: "Labels are key-value string pairs which can be attached to a instance.",
+				Description: "Labels are key-value string pairs which can be attached to the resource.",
 				ElementType: types.StringType,
 				Optional:    true,
-				Validators: []validator.Map{
-					mapvalidator.KeysAre(
-						stringvalidator.RegexMatches(
-							regexp.MustCompile(`[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
-							"must match expression"),
-					),
-					mapvalidator.ValueStringsAre(
-						stringvalidator.RegexMatches(
-							regexp.MustCompile(`^$|[A-ZÄÜÖa-zäüöß0-9_-]{1,64}`),
-							"must match expression"),
-					),
-				},
+				Validators:  validate.LabelValidators(),
 			},
 			"region": schema.StringAttribute{
 				Optional: true,
