@@ -884,7 +884,7 @@ func uploadImage(ctx context.Context, diags *diag.Diagnostics, filePath, uploadU
 	req.ContentLength = stat.Size()
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // file upload
 	if err != nil {
 		return fmt.Errorf("upload image: %w", err)
 	}

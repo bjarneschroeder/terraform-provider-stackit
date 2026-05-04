@@ -48,7 +48,6 @@ linters:
     gosec:
       excludes:
         # Suppressions: (see https://github.com/securego/gosec#available-rules for details)
-        - G101 # "Look for hardcoded credentials" -> a lot of false positives in descriptions for resources like mariadb/credential
         - G104 # "Audit errors not checked" -> which we don't need and is a badly implemented version of errcheck
         - G102 # "Bind to all interfaces" -> since this is normal in k8s
         - G304 # "File path provided as taint input" -> too many false positives
