@@ -3191,6 +3191,10 @@ func TestAccIaaSSecurityGroupMax(t *testing.T) {
 
 					// Security Group Rule (icmp)
 					resource.TestCheckResourceAttrPair(
+						"stackit_security_group_rule.security_group_rule_icmp", "project_id",
+						"stackit_security_group.security_group", "project_id",
+					),
+					resource.TestCheckResourceAttrPair(
 						"stackit_security_group_rule.security_group_rule_icmp", "security_group_id",
 						"stackit_security_group.security_group", "security_group_id",
 					),
