@@ -276,7 +276,7 @@ func (r *exportPolicyResource) Create(ctx context.Context, req resource.CreateRe
 		}
 	}
 
-	payload, err := toCreatePayload(&model, rules)
+	payload, err := toCreatePayload(ctx, &model, rules)
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Error creating export policy", fmt.Sprintf("Creating API payload: %v", err))
 		return
@@ -407,7 +407,7 @@ func (r *exportPolicyResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 	}
 
-	payload, err := toUpdatePayload(&model, rules)
+	payload, err := toUpdatePayload(ctx, &model, rules)
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Error updating export policy", fmt.Sprintf("Creating API payload: %v", err))
 		return
@@ -518,15 +518,9 @@ func mapFields(ctx context.Context, resp *sfs.GetShareExportPolicyResponse, mode
 		return fmt.Errorf("export policy id not present")
 	}
 
-	var labels basetypes.MapValue
-	if resp.ShareExportPolicy.Labels != nil && len(*resp.ShareExportPolicy.Labels) != 0 {
-		var err error
-		labels, err = conversion.ToTerraformStringMap(ctx, *resp.ShareExportPolicy.Labels)
-		if err != nil {
-			return fmt.Errorf("converting to StringValue map: %w", err)
-		}
-	} else {
-		labels = types.MapNull(types.StringType)
+	labels, err := utils.MapLabels(ctx, resp.ShareExportPolicy.Labels, model.Labels)
+	if err != nil {
+		return err
 	}
 	model.Labels = labels
 
@@ -583,7 +577,7 @@ func mapFields(ctx context.Context, resp *sfs.GetShareExportPolicyResponse, mode
 }
 
 // Build a CreateShareExportPolicyPayload from provider's model
-func toCreatePayload(model *Model, rules []rulesModel) (*sfs.CreateShareExportPolicyPayload, error) {
+func toCreatePayload(ctx context.Context, model *Model, rules []rulesModel) (*sfs.CreateShareExportPolicyPayload, error) {
 	if model == nil {
 		return nil, fmt.Errorf("nil model")
 	}
@@ -591,10 +585,9 @@ func toCreatePayload(model *Model, rules []rulesModel) (*sfs.CreateShareExportPo
 		return nil, fmt.Errorf("nil rules")
 	}
 
-	modelLabels := model.Labels.Elements()
-	labels, err := conversion.ToOptStringMap(modelLabels)
+	labels, err := utils.LabelsToPayload(ctx, model.Labels)
 	if err != nil {
-		return nil, fmt.Errorf("converting to Go map: %w", err)
+		return nil, err
 	}
 
 	// iterate over rules
@@ -619,7 +612,7 @@ func toCreatePayload(model *Model, rules []rulesModel) (*sfs.CreateShareExportPo
 	// name and rules
 	result := &sfs.CreateShareExportPolicyPayload{
 		Name:   model.Name.ValueString(),
-		Labels: labels,
+		Labels: &labels,
 	}
 
 	// Rules should only be set if tempRules has value. Otherwise, the payload would contain `{ "rules": null }` what should be prevented
@@ -630,7 +623,7 @@ func toCreatePayload(model *Model, rules []rulesModel) (*sfs.CreateShareExportPo
 	return result, nil
 }
 
-func toUpdatePayload(model *Model, rules []rulesModel) (*sfs.UpdateShareExportPolicyPayload, error) {
+func toUpdatePayload(ctx context.Context, model *Model, rules []rulesModel) (*sfs.UpdateShareExportPolicyPayload, error) {
 	if model == nil {
 		return nil, fmt.Errorf("nil model")
 	}
@@ -638,10 +631,9 @@ func toUpdatePayload(model *Model, rules []rulesModel) (*sfs.UpdateShareExportPo
 		return nil, fmt.Errorf("nil rules")
 	}
 
-	modelLabels := model.Labels.Elements()
-	labels, err := conversion.ToOptStringMap(modelLabels)
+	labels, err := utils.LabelsToPayload(ctx, model.Labels)
 	if err != nil {
-		return nil, fmt.Errorf("converting to GO map: %w", err)
+		return nil, err
 	}
 
 	// iterate over rules
@@ -668,7 +660,7 @@ func toUpdatePayload(model *Model, rules []rulesModel) (*sfs.UpdateShareExportPo
 		// Rules should *+never** result in a payload where they are defined as null, e.g. `{ "rules": null }`. Instead,
 		// they should either be set to an array (with values or empty) or they shouldn't be present in the payload.
 		Rules:  tempRules,
-		Labels: labels,
+		Labels: &labels,
 	}
 	return result, nil
 }

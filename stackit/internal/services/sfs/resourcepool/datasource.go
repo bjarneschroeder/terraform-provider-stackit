@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -255,15 +254,9 @@ func mapDataSourceFields(ctx context.Context, region string, resourcePool *sfs.R
 		model.SizeReducibleAt = types.StringValue(t.Format(time.RFC3339))
 	}
 
-	var labels basetypes.MapValue
-	if resourcePool.Labels != nil && len(*resourcePool.Labels) != 0 {
-		var err error
-		labels, err = conversion.ToTerraformStringMap(ctx, *resourcePool.Labels)
-		if err != nil {
-			return fmt.Errorf("converting to StringValue map: %w", err)
-		}
-	} else {
-		labels = types.MapNull(types.StringType)
+	labels, err := utils.MapLabels(ctx, resourcePool.Labels, model.Labels)
+	if err != nil {
+		return err
 	}
 	model.Labels = labels
 

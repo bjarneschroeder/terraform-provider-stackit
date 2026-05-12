@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -227,7 +226,7 @@ func (r *shareResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	ctx = core.InitProviderContext(ctx)
 
-	payload, err := toCreatePayload(&model)
+	payload, err := toCreatePayload(ctx, &model)
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Create Resourcepool", fmt.Sprintf("Cannot create payload: %v", err))
 		return
@@ -235,7 +234,7 @@ func (r *shareResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	// Create new share
 	share, err := r.client.DefaultAPI.CreateShare(ctx, projectId, region, resourcePoolId).
-		CreateSharePayload(payload).
+		CreateSharePayload(*payload).
 		Execute()
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Error creating share", fmt.Sprintf("Calling API: %v", err))
@@ -378,7 +377,7 @@ func (r *shareResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	payload, err := toUpdatePayload(&model)
+	payload, err := toUpdatePayload(ctx, &model)
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Update share", fmt.Sprintf("cannot create payload: %v", err))
 		return
@@ -515,15 +514,9 @@ func mapFields(ctx context.Context, share *sfs.Share, region string, model *Mode
 	)
 	model.Name = types.StringPointerValue(share.Name)
 
-	var labels basetypes.MapValue
-	if share.Labels != nil && len(*share.Labels) != 0 {
-		var err error
-		labels, err = conversion.ToTerraformStringMap(ctx, *share.Labels)
-		if err != nil {
-			return fmt.Errorf("converting to StringValue map: %w", err)
-		}
-	} else {
-		labels = types.MapNull(types.StringType)
+	labels, err := utils.MapLabels(ctx, share.Labels, model.Labels)
+	if err != nil {
+		return err
 	}
 	model.Labels = labels
 
@@ -539,41 +532,39 @@ func mapFields(ctx context.Context, share *sfs.Share, region string, model *Mode
 	return nil
 }
 
-func toCreatePayload(model *Model) (ret sfs.CreateSharePayload, err error) {
+func toCreatePayload(ctx context.Context, model *Model) (ret *sfs.CreateSharePayload, err error) {
 	if model == nil {
 		return ret, fmt.Errorf("nil model")
 	}
 
-	modelLabels := model.Labels.Elements()
-	labels, err := conversion.ToOptStringMap(modelLabels)
+	labels, err := utils.LabelsToPayload(ctx, model.Labels)
 	if err != nil {
-		return ret, fmt.Errorf("converting to Go map: %w", err)
+		return nil, err
 	}
 
-	result := sfs.CreateSharePayload{
+	result := &sfs.CreateSharePayload{
 		ExportPolicyName:        *sfs.NewNullableString(model.ExportPolicyName.ValueStringPointer()),
 		Name:                    model.Name.ValueString(),
-		Labels:                  labels,
+		Labels:                  &labels,
 		SpaceHardLimitGigabytes: model.SpaceHardLimitGigabytes.ValueInt32(),
 	}
 	return result, nil
 }
 
-func toUpdatePayload(model *Model) (*sfs.UpdateSharePayload, error) {
+func toUpdatePayload(ctx context.Context, model *Model) (*sfs.UpdateSharePayload, error) {
 	if model == nil {
 		return nil, fmt.Errorf("nil model")
 	}
 
-	modelLabels := model.Labels.Elements()
-	labels, err := conversion.ToOptStringMap(modelLabels)
+	labels, err := utils.LabelsToPayload(ctx, model.Labels)
 	if err != nil {
-		return nil, fmt.Errorf("converting to GO map: %w", err)
+		return nil, err
 	}
 
 	result := &sfs.UpdateSharePayload{
 		ExportPolicyName:        *sfs.NewNullableString(model.ExportPolicyName.ValueStringPointer()),
 		SpaceHardLimitGigabytes: *sfs.NewNullableInt32(model.SpaceHardLimitGigabytes.ValueInt32Pointer()),
-		Labels:                  labels,
+		Labels:                  &labels,
 	}
 	return result, nil
 }

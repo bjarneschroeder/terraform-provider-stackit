@@ -144,6 +144,7 @@ func TestToCreatePayload(t *testing.T) {
 				Name:             "testname",
 				PerformanceClass: "performance",
 				SizeGigabytes:    42,
+				Labels:           &map[string]string{},
 			},
 			false,
 		},
@@ -165,13 +166,14 @@ func TestToCreatePayload(t *testing.T) {
 				Name:             "testname",
 				PerformanceClass: "performance",
 				SizeGigabytes:    42,
+				Labels:           &map[string]string{},
 			},
 			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := toCreatePayload(tt.model)
+			got, err := toCreatePayload(context.Background(), tt.model)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("toCreatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -208,6 +210,7 @@ func TestToUpdatePayload(t *testing.T) {
 				PerformanceClass:    new("performance"),
 				SizeGigabytes:       *sfs.NewNullableInt32(utils.Ptr[int32](42)),
 				SnapshotsAreVisible: new(true),
+				Labels:              &map[string]string{},
 			},
 			false,
 		},
@@ -227,6 +230,7 @@ func TestToUpdatePayload(t *testing.T) {
 				IpAcl:            nil,
 				PerformanceClass: new("performance"),
 				SizeGigabytes:    *sfs.NewNullableInt32(utils.Ptr[int32](42)),
+				Labels:           &map[string]string{},
 			},
 			false,
 		},
@@ -246,13 +250,14 @@ func TestToUpdatePayload(t *testing.T) {
 				IpAcl:            []string{},
 				PerformanceClass: new("performance"),
 				SizeGigabytes:    *sfs.NewNullableInt32(utils.Ptr[int32](42)),
+				Labels:           &map[string]string{},
 			},
 			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := toUpdatePayload(tt.model)
+			got, err := toUpdatePayload(context.Background(), tt.model)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("toUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return

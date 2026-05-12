@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -228,15 +227,9 @@ func mapDataSourceFields(ctx context.Context, region string, share *sfs.Share, m
 
 	model.MountPath = types.StringPointerValue(share.MountPath)
 
-	var labels basetypes.MapValue
-	if share.Labels != nil && len(*share.Labels) != 0 {
-		var err error
-		labels, err = conversion.ToTerraformStringMap(ctx, *share.Labels)
-		if err != nil {
-			return fmt.Errorf("converting to StringValue map: %w", err)
-		}
-	} else {
-		labels = types.MapNull(types.StringType)
+	labels, err := utils.MapLabels(ctx, share.Labels, model.Labels)
+	if err != nil {
+		return err
 	}
 	model.Labels = labels
 

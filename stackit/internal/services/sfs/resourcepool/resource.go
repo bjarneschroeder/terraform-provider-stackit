@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	sfs "github.com/stackitcloud/stackit-sdk-go/services/sfs/v1api"
@@ -229,7 +228,7 @@ func (r *resourcePoolResource) Create(ctx context.Context, req resource.CreateRe
 
 	ctx = core.InitProviderContext(ctx)
 
-	payload, err := toCreatePayload(&model)
+	payload, err := toCreatePayload(ctx, &model)
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Error creating resource pool", fmt.Sprintf("Cannot create payload: %v", err))
 		return
@@ -376,7 +375,7 @@ func (r *resourcePoolResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	payload, err := toUpdatePayload(&model)
+	payload, err := toUpdatePayload(ctx, &model)
 	if err != nil {
 		core.LogAndAddError(ctx, &resp.Diagnostics, "Update resource pool", fmt.Sprintf("cannot create payload: %v", err))
 		return
@@ -519,15 +518,9 @@ func mapFields(ctx context.Context, region string, resourcePool *sfs.ResourcePoo
 		model.IpAcl = types.ListNull(types.StringType)
 	}
 
-	var labels basetypes.MapValue
-	if resourcePool.Labels != nil && len(*resourcePool.Labels) != 0 {
-		var err error
-		labels, err = conversion.ToTerraformStringMap(ctx, *resourcePool.Labels)
-		if err != nil {
-			return fmt.Errorf("converting to StringValue map: %w", err)
-		}
-	} else {
-		labels = types.MapNull(types.StringType)
+	labels, err := utils.MapLabels(ctx, resourcePool.Labels, model.Labels)
+	if err != nil {
+		return err
 	}
 	model.Labels = labels
 
@@ -543,7 +536,7 @@ func mapFields(ctx context.Context, region string, resourcePool *sfs.ResourcePoo
 	return nil
 }
 
-func toCreatePayload(model *Model) (*sfs.CreateResourcePoolPayload, error) {
+func toCreatePayload(ctx context.Context, model *Model) (*sfs.CreateResourcePoolPayload, error) {
 	if model == nil {
 		return nil, fmt.Errorf("nil model")
 	}
@@ -558,17 +551,16 @@ func toCreatePayload(model *Model) (*sfs.CreateResourcePoolPayload, error) {
 		aclList = tmp
 	}
 
-	modelLabels := model.Labels.Elements()
-	labels, err := conversion.ToOptStringMap(modelLabels)
+	labels, err := utils.LabelsToPayload(ctx, model.Labels)
 	if err != nil {
-		return nil, fmt.Errorf("converting to Go map: %w", err)
+		return nil, err
 	}
 
 	result := &sfs.CreateResourcePoolPayload{
 		AvailabilityZone:    model.AvailabilityZone.ValueString(),
 		IpAcl:               aclList,
 		Name:                model.Name.ValueString(),
-		Labels:              labels,
+		Labels:              &labels,
 		PerformanceClass:    model.PerformanceClass.ValueString(),
 		SizeGigabytes:       model.SizeGigabytes.ValueInt32(),
 		SnapshotsAreVisible: model.SnapshotsAreVisible.ValueBoolPointer(),
@@ -576,7 +568,7 @@ func toCreatePayload(model *Model) (*sfs.CreateResourcePoolPayload, error) {
 	return result, nil
 }
 
-func toUpdatePayload(model *Model) (*sfs.UpdateResourcePoolPayload, error) {
+func toUpdatePayload(ctx context.Context, model *Model) (*sfs.UpdateResourcePoolPayload, error) {
 	if model == nil {
 		return nil, fmt.Errorf("nil model")
 	}
@@ -591,10 +583,9 @@ func toUpdatePayload(model *Model) (*sfs.UpdateResourcePoolPayload, error) {
 		aclList = tmp
 	}
 
-	modelLabels := model.Labels.Elements()
-	labels, err := conversion.ToOptStringMap(modelLabels)
+	labels, err := utils.LabelsToPayload(ctx, model.Labels)
 	if err != nil {
-		return nil, fmt.Errorf("converting to GO map: %w", err)
+		return nil, err
 	}
 
 	result := &sfs.UpdateResourcePoolPayload{
@@ -602,7 +593,7 @@ func toUpdatePayload(model *Model) (*sfs.UpdateResourcePoolPayload, error) {
 		PerformanceClass:    model.PerformanceClass.ValueStringPointer(),
 		SizeGigabytes:       *sfs.NewNullableInt32(model.SizeGigabytes.ValueInt32Pointer()),
 		SnapshotsAreVisible: model.SnapshotsAreVisible.ValueBoolPointer(),
-		Labels:              labels,
+		Labels:              &labels,
 	}
 	return result, nil
 }
